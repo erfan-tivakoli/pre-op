@@ -8,7 +8,7 @@ from PyQt5.QtCore import Qt, QRectF
 from coin_detector import find_coin
 
 lldButton_clicked = False
-
+calibration_ratio = None
 
 class MouseTracker(QWidget):
 
@@ -34,7 +34,7 @@ class MouseTracker(QWidget):
 
     def mouseMoveEvent(self, event):
         QtWidgets.QApplication.sendEvent(self.viewer, event)
-        print('moving in tracker')
+        # print('moving in tracker')
         if 0 < len(self.positions) < 4:
             self.pos = event.pos()
             self.update()
@@ -43,14 +43,20 @@ class MouseTracker(QWidget):
 
     def mousePressEvent(self, QMouseEvent):
         QtWidgets.QApplication.sendEvent(self.viewer, QMouseEvent)
-        print('first')
+        # print('first')
         global lldButton_clicked
         if not lldButton_clicked:
             return
         if len(self.positions) == 4:
             self.positions = [QMouseEvent.pos()]
+
         elif len(self.positions) < 4:
+            global calibration_ratio
             self.positions.append(QMouseEvent.pos())
+            if len(self.positions) > 1:
+                print(math.sqrt((self.positions[-1].x() - self.positions[-2].x()) * (self.positions[-1].x() - self.positions[-2].x())
+                      + (self.positions[-1].y() - self.positions[-2].y()) * (self.positions[-1].y() - self.positions[-2].y())) * calibration_ratio
+                      )
 
     def paintEvent(self, event):
         if self.pos and len(self.positions) > 0:
@@ -125,7 +131,7 @@ class ShellItem(QtWidgets.QGraphicsItem):
         self.clicked_in_rotation_area = False
 
     def mouseMoveEvent(self, QGraphicsSceneMouseEvent):
-        print('stem moving')
+        # print('stem moving')
         x = QGraphicsSceneMouseEvent.scenePos().x() - self.pos().x() - self.transformOriginPoint().x()
         y = QGraphicsSceneMouseEvent.scenePos().y() - self.pos().y() - self.transformOriginPoint().y()
 
@@ -288,6 +294,13 @@ class Window(QtWidgets.QWidget):
         self.btnLoad.setText('Load image')
         self.btnLoad.clicked.connect(self.loadImage)
 
+
+        # Push button for calibration
+        self.calibratebtn = QtWidgets.QToolButton(self)
+        self.calibratebtn.setText('Calibrate')
+        self.calibratebtn.clicked.connect(self.calibrate)
+        self.calibratebtn.hide()
+
         # Combo for shell selecting
         self.shellCombo = QtWidgets.QComboBox(self)
         self.shellCombo.addItem('Select Shell type')
@@ -314,11 +327,6 @@ class Window(QtWidgets.QWidget):
         self.mySlider.valueChanged[int].connect(self.changeValue)
         self.mySlider.hide()
 
-        # Push button for calibration
-        self.calibratebtn = QtWidgets.QToolButton(self)
-        self.calibratebtn.setText('Calibrate')
-        self.calibratebtn.clicked.connect(self.calibrate)
-        self.calibratebtn.hide()
 
         # Push button for lld
         self.lldButton = QtWidgets.QPushButton(self)
@@ -333,11 +341,11 @@ class Window(QtWidgets.QWidget):
         HBlayout = QtWidgets.QHBoxLayout()
         HBlayout.setAlignment(QtCore.Qt.AlignLeft)
         HBlayout.addWidget(self.btnLoad)
+        HBlayout.addWidget(self.calibratebtn)
         HBlayout.addWidget(self.shellCombo)
         HBlayout.addWidget(self.stemCombo)
         HBlayout.addWidget(self.lldButton)
 
-        HBlayout.addWidget(self.calibratebtn)
         HBlayout.addWidget(self.mySlider)
         VBlayout.addLayout(HBlayout)
 
@@ -347,9 +355,18 @@ class Window(QtWidgets.QWidget):
                                                          'Images (*.png *.jpeg *.jpg *.bmp *.gif)', options=options)
         if self.image_path:
             self.viewer.setPhoto(QtGui.QPixmap(self.image_path))
-            self.shellCombo.show()
+            self.calibratebtn.show()
         else:
             pass
+
+
+    def calibrate(self):
+        global calibration_ratio
+        new_path, calibration_ratio = find_coin(self.image_path)
+        self.viewer.setPhoto(QtGui.QPixmap(new_path))
+        self.image_path = new_path
+        self.shellCombo.show()
+
 
     def loadShell(self):
         if 'Type' not in self.shellCombo.currentText():
@@ -357,11 +374,12 @@ class Window(QtWidgets.QWidget):
         self.viewer._scene.addItem(self.viewer.small_part)
         self.stemCombo.show()
 
+
     def loadStem(self):
         if 'Type' not in self.stemCombo.currentText():
             return
         self.viewer._scene.addItem(self.viewer.big_part)
-        self.calibratebtn.show()
+        self.lldButton.show()
 
     # def operate(self):
     #     if self.viewer.hasPhoto():
@@ -391,11 +409,6 @@ class Window(QtWidgets.QWidget):
         elif self.viewer.big_part.isSelected():
             self.viewer.big_part.setScale(float(value / 100))
 
-    def calibrate(self):
-        new_path = find_coin(self.image_path)
-        self.viewer.setPhoto(QtGui.QPixmap(new_path))
-        self.image_path = new_path
-        self.lldButton.show()
 
     def lldButton_click_handler(self):
         global lldButton_clicked
