@@ -6,6 +6,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Qt, QRectF
 
 from coin_detector import find_coin
+from utils import distance_to_line
 
 lldButton_clicked = False
 calibration_ratio = None
@@ -29,7 +30,6 @@ class MouseTracker(QWidget):
         self.show()
         self.pos = None
         self.positions = []
-        self.installEventFilter(self)
 
 
     def mouseMoveEvent(self, event):
@@ -51,12 +51,18 @@ class MouseTracker(QWidget):
             self.positions = [QMouseEvent.pos()]
 
         elif len(self.positions) < 4:
-            global calibration_ratio
             self.positions.append(QMouseEvent.pos())
-            if len(self.positions) > 1:
-                print(math.sqrt((self.positions[-1].x() - self.positions[-2].x()) * (self.positions[-1].x() - self.positions[-2].x())
-                      + (self.positions[-1].y() - self.positions[-2].y()) * (self.positions[-1].y() - self.positions[-2].y())) * calibration_ratio
-                      )
+
+            if len(self.positions) == 4:
+                global calibration_ratio
+                x1, y1 = self.positions[0].x(), self.positions[0].y()
+                x2, y2 = self.positions[1].x(), self.positions[1].y()
+                x3, y3 = self.positions[2].x(), self.positions[2].y()
+                x4, y4 = self.positions[3].x(), self.positions[3].y()
+
+                first_distance = distance_to_line(x2,y2,x3,y3,x1,y1)
+                second_distance = distance_to_line(x2,y2,x3,y3,x4,y4)
+                print(math.fabs(first_distance - second_distance) * calibration_ratio)
 
     def paintEvent(self, event):
         if self.pos and len(self.positions) > 0:
